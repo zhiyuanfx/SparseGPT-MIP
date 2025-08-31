@@ -1,0 +1,3 @@
+[submodule "PhiSolve"]
+	path = PhiSolve
+	url = https://github.com/Artephi-Computing/PhiSolve.git
