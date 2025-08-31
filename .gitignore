@@ -1,0 +1,13 @@
+/output
+/tinyopt
+/tinyopt2
+/__pycache__
+
+*.npz
+*.npy
+*.lic
+*.csv
+*.ipynb
+.DS_Store
+
+
