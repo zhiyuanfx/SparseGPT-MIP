@@ -1,21 +1,20 @@
 import time
-
 import torch
 import torch.nn as nn
 import transformers
 
+from gurobi_pruner import gurobi_prune
 from quant import *
-from mask_solver import solve_mask
 
 torch.backends.cuda.matmul.allow_tf32 = False
 torch.backends.cudnn.allow_tf32 = False
 
 class MIPPruner:
     
-    def __init__(self, layer):
+    def __init__(self, layer: nn.Module) -> None:
         self.layer = layer
-        self.dev = self.layer.weight.device
-        
+        self.dev = self.layer.weight.device    
+            
         W = layer.weight.data.clone()
         if isinstance(self.layer, transformers.Conv1D):
             W = W.t()
@@ -27,14 +26,14 @@ class MIPPruner:
         self.inps = None  # inps shape: [nsamples, input_dim]
         self.outs = None  # outs shape: [nsamples, output_dim]
 
-    def add_batch(self, inp, out):
+    def add_batch(self, inp: torch.Tensor, out: torch.Tensor) -> None:
         inp = inp.reshape((-1, inp.shape[-1]))  # inp shape: [cur_nsample * seq_len, input_dim]
         out = out.reshape((-1, out.shape[-1]))  # out shape: [cur_nsample * seq_len, output_dim]
     
         self.inps = inp if self.inps is None else torch.cat((self.inps, inp), dim=0)
         self.outs = out if self.outs is None else torch.cat((self.outs, out), dim=0)
 
-    def gurobi_mip_prune(self, sparsity, n, m, structure='unstructured', num_processes=None):
+    def mip_prune(self, sparsity: float, n: int, m: int, structure: str, solver: str) -> None:
         
         time0 = time.time()
         W = self.layer.weight.data.clone()
@@ -46,14 +45,16 @@ class MIPPruner:
         if hasattr(self, 'quantizer') and not self.quantizer.ready():
             self.quantizer.find_params(W, weight=True)
 
-        inps = self.inps
-        outs = self.outs
         if self.layer.bias is None:
-            debiased_outs = outs
+            debiased_outs = self.outs
         else:
-            debiased_outs = outs - self.layer.bias.data.unsqueeze(0)
-        W = solve_mask(inps, debiased_outs, W, sparsity, n, m, method='gurobi', structure=structure)
-
+            debiased_outs = self.outs - self.layer.bias.data.unsqueeze(0)
+            
+        if solver == 'gurobi':    
+            W = gurobi_prune(self.inps, debiased_outs, W, sparsity, n, m, structure, self.dev)
+        else:
+            raise NotImplementedError(f"Unknown solver: {solver}")
+    
         if hasattr(self, 'quantizer'):
             W_q = W.clone()
             for i in range(W_q.shape[1]):
@@ -65,10 +66,10 @@ class MIPPruner:
         self.layer.weight.data = W.reshape(self.layer.weight.shape).to(self.layer.weight.data.dtype)
         time1 = time.time()
         
-        prune_loss = torch.nn.functional.mse_loss(outs, self.layer(inps)).item()
+        prune_loss = torch.nn.functional.mse_loss(self.outs, self.layer(self.inps)).item()
         print(f"time: {time1 - time0:.2f}s, prune loss: {prune_loss:.10f}")
 
-    def free(self):
+    def free(self) -> None:
         self.inps = None
         self.outs = None
         torch.cuda.empty_cache()

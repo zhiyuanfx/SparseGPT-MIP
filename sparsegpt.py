@@ -7,15 +7,12 @@ import torch.nn as nn
 import transformers
 
 from quant import *
-from mask_solver import solve_mask
-
 
 DEBUG = False 
 PRUNE_LOSS = True  # Set to True to track prune loss
 
 torch.backends.cuda.matmul.allow_tf32 = False
 torch.backends.cudnn.allow_tf32 = False
-
 
 class SparseGPT:
 

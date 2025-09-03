@@ -204,7 +204,7 @@ def opt_sequential_mip(model, dataloader, dev):
         structure = 'unstructured' if args.prunen == 0 else 'semi'
         for name in pruners:
             print(i, name)
-            pruners[name].gurobi_mip_prune(sparsity=args.sparsity, n=args.prunen, m=args.prunem, structure=structure)
+            pruners[name].mip_prune(sparsity=args.sparsity, n=args.prunen, m=args.prunem, structure=structure, solver=args.solver)
             pruners[name].free()
 
         if not args.dense_before_now:
@@ -397,8 +397,8 @@ if __name__ == '__main__':
        help='Whether to log to wandb.'
     )
     parser.add_argument(
-        '--solver', type=str, default='sparsegpt',
-        help='Which solver to use: `sparsegpt` or `gurobi_mip`.'
+        '--solver', type=str,
+        help='Which solver to use: `sparsegpt` or `gurobi`.'
     )
     parser.add_argument(
         '--dense_before_now', type=bool, default=True,
@@ -406,6 +406,9 @@ if __name__ == '__main__':
     )
 
     args = parser.parse_args()
+    
+    if args.solver not in ['sparsegpt', 'gurobi']:
+        raise ValueError(f"Unknown solver: {args.solver}")
 
     # init W&B logging
     if args.log_wandb:
@@ -418,8 +421,12 @@ if __name__ == '__main__':
     dataloader, _ = get_loaders(
         args.dataset, nsamples=args.nsamples, seed=args.seed, model=args.model, seqlen=model.seqlen
     )
-
-    solver_fn = opt_sequential if args.solver == 'sparsegpt' else opt_sequential_mip
+    
+    if args.solver == 'sparsegpt':
+        solver_fn = opt_sequential
+    elif args.solver == 'gurobi':
+        solver_fn = opt_sequential_mip
+    
     if (args.sparsity or args.prunen) and not args.gmp:
         solver_fn(model, dataloader, DEV)
 
