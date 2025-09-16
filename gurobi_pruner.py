@@ -18,7 +18,7 @@ _shared_output_dim = None
 _shared_input_dim = None
 
 def gurobi_prune(inps: torch.Tensor, outs: torch.Tensor, weights: torch.Tensor, sparsity: float,
-                    n: int, m: int, structure: str, dev: str) -> torch.Tensor:
+                    n: int, m: int, structure: str, dev: torch.device) -> torch.Tensor:
     """
         Run Gurobi pruning row by row, optionally in parallel.
         Returns: 
@@ -111,7 +111,7 @@ def _init_worker(XtX: np.ndarray, Xty: np.ndarray, nsample: int,
     _shared_structure = structure
     _shared_output_dim, _shared_input_dim = weights.shape
 
-def compute_matrices(inps: torch.Tensor, outs: torch.Tensor, dev: str) -> tuple[np.ndarray, np.ndarray, int]:
+def compute_matrices(inps: torch.Tensor, outs: torch.Tensor, dev: torch.device) -> tuple[np.ndarray, np.ndarray, int]:
     """
     Precompute matrices for the quadratic objective.
     """

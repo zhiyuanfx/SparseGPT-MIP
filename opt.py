@@ -398,7 +398,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--solver', type=str,
-        help='Which solver to use: `sparsegpt` or `gurobi`.'
+        help='Which solver to use: `sparsegpt`, `gurobi`, or `qhd`.'
     )
     parser.add_argument(
         '--dense_before_now', type=bool, default=True,
@@ -407,7 +407,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     
-    if args.solver not in ['sparsegpt', 'gurobi']:
+    if args.solver not in ['sparsegpt', 'gurobi', 'qhd']:
         raise ValueError(f"Unknown solver: {args.solver}")
 
     # init W&B logging
@@ -424,7 +424,7 @@ if __name__ == '__main__':
     
     if args.solver == 'sparsegpt':
         solver_fn = opt_sequential
-    elif args.solver == 'gurobi':
+    elif args.solver == 'gurobi' or args.solver == 'qhd':
         solver_fn = opt_sequential_mip
     
     if (args.sparsity or args.prunen) and not args.gmp:

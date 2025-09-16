@@ -17,3 +17,9 @@ params = {
     "LICENSEID":   1,
     "LogToConsole": 0  
 }
+
+# -----QHD parameters-----
+QHD_SHOTS = 100
+QHD_STEPS = 10000
+QHD_SEED = 42
+JAXADAM_ITERS = 300

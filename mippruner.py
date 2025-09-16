@@ -4,6 +4,7 @@ import torch.nn as nn
 import transformers
 
 from gurobi_pruner import gurobi_prune
+from qhd_pruner import qhd_prune
 from quant import *
 
 torch.backends.cuda.matmul.allow_tf32 = False
@@ -52,6 +53,8 @@ class MIPPruner:
             
         if solver == 'gurobi':    
             W = gurobi_prune(self.inps, debiased_outs, W, sparsity, n, m, structure, self.dev)
+        elif solver == 'qhd':
+            W = qhd_prune(self.inps, debiased_outs, W, sparsity, n, m, structure, self.dev)
         else:
             raise NotImplementedError(f"Unknown solver: {solver}")
     
