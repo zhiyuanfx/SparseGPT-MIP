@@ -430,7 +430,7 @@ if __name__ == '__main__':
     if (args.sparsity or args.prunen) and not args.gmp:
         solver_fn(model, dataloader, DEV)
 
-    for dataset in ['wikitext2', 'c4']:
+    for dataset in ['wikitext2', 'c4', 'ptb']:
         print(dataset)
         print("train:")
         _, testloader = get_loaders(

@@ -7,7 +7,7 @@ import jax
 import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), "PhiSolve"))
 from phisolve.utils.jax_utils import jax_device
-from phisolve import PhiMIQP, MIQP, QIHD, JaxAdam
+from phisolve import PhiMIQP, MIQP, QIHD, JaxAdam, AdamMS
 
 def solve_single_row_qhd(row_idx: int, XtX: np.ndarray, Xty: np.ndarray, weights: np.ndarray, sparsity: float,
                             n: int, m: int, structure: str, nsample: int, device: str) -> np.ndarray:
@@ -32,8 +32,8 @@ def solve_single_row_qhd(row_idx: int, XtX: np.ndarray, Xty: np.ndarray, weights
     n_vars = 2 * row_len
     lbs = np.zeros(n_vars)
     ubs = np.ones(n_vars)
-    lbs[row_len:] = -np.abs(w_row)
-    ubs[row_len:] = np.abs(w_row)
+    lbs[row_len:] = -np.abs(w_row) * solver_config.EPSILON_PERCENT
+    ubs[row_len:] = np.abs(w_row) * solver_config.EPSILON_PERCENT
 
     # Error bounding constraints
     # -z_i * |w_i| eps <= e_i <= z_i * |w_i| eps
@@ -82,14 +82,16 @@ def solve_single_row_qhd(row_idx: int, XtX: np.ndarray, Xty: np.ndarray, weights
         device=device, seed=solver_config.QHD_SEED
     )
     
-    refiner = JaxAdam(iterations=solver_config.JAXADAM_ITERS, device=device)
+    refiner = AdamMS(learning_rate=solver_config.ADAMMS_LR, iterations=solver_config.ADAMMS_ITERS, device=device)
     
-    model = PhiMIQP(prob, backend, refiner)
+    model = PhiMIQP(prob, backend, refiner, force_valid_standard='magnitude',
+                    sparsity_n=n, sparsity_m=m, sparsity_p=sparsity, sparsity_structure=structure, w_row=w_row)
     res = model.solve()
     
     x_sol = np.array(res.minimizer)
     z_mask = (x_sol[:row_len] > 0.5).astype(float)
     e_adjust = x_sol[row_len:]
+    
     pruned_row = w_row * z_mask + e_adjust
 
     if row_idx == 0:

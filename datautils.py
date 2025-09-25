@@ -30,7 +30,7 @@ def get_wikitext2(nsamples, seed, seqlen, model, tokenizer, is_train):
     testdata = load_dataset('wikitext', 'wikitext-2-raw-v1', split='test')
 
     trainenc = tokenizer(" ".join(traindata['text']), return_tensors='pt')
-    testenc = tokenizer("\n\n".join(testdata['text']), return_tensors='pt')
+    testenc = tokenizer(" ".join(testdata['text']), return_tensors='pt')
 
     random.seed(seed)
     trainloader = []
@@ -89,9 +89,9 @@ def get_c4(nsamples, seed, seqlen, model, tokenizer, is_train):
 
     return trainloader, valenc
 
-def get_ptb(nsamples, seed, seqlen, model, tokenizer):
-    traindata = load_dataset('ptb_text_only', 'penn_treebank', split='train')
-    testdata = load_dataset('ptb_text_only', 'penn_treebank', split='test')
+def get_ptb(nsamples, seed, seqlen, model, tokenizer, is_train):
+    traindata = load_dataset('ptb_text_only', 'penn_treebank', split='train', trust_remote_code=True)
+    testdata = load_dataset('ptb_text_only', 'penn_treebank', split='test', trust_remote_code=True)
 
     trainenc = tokenizer(" ".join(traindata['sentence']), return_tensors='pt')
     testenc = tokenizer(" ".join(testdata['sentence']), return_tensors='pt')
@@ -105,6 +105,15 @@ def get_ptb(nsamples, seed, seqlen, model, tokenizer):
         tar = inp.clone()
         tar[:, :-1] = -100
         trainloader.append((inp, tar))
+    
+    if is_train:
+      testenc = torch.cat([pair[0] for pair in trainloader], dim=1) 
+
+      class TokenizerWrapper:
+        def __init__(self, input_ids):
+            self.input_ids = input_ids
+      testenc = TokenizerWrapper(testenc)
+
     return trainloader, testenc
 
 def get_loaders(name, nsamples=128, seed=0, seqlen=2048, model='', is_train=True):
@@ -112,6 +121,6 @@ def get_loaders(name, nsamples=128, seed=0, seqlen=2048, model='', is_train=True
     if 'wikitext2' in name:
         return get_wikitext2(nsamples, seed, seqlen, model, tokenizer, is_train)
     if 'ptb' in name:
-        return get_ptb(nsamples, seed, seqlen, model, tokenizer)
+        return get_ptb(nsamples, seed, seqlen, model, tokenizer, is_train)
     if 'c4' in name:
         return get_c4(nsamples, seed, seqlen, model, tokenizer, is_train)
