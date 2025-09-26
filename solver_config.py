@@ -29,3 +29,5 @@ JAXADAM_LR = 0.1
 ADAMMS_ITERS = 300
 ADAMMS_LR = 0.1
 
+FORCE_VALID_STANDARD = 'magnitude'  # 'magnitude' or 'sparsegpt'
+

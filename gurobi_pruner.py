@@ -8,6 +8,7 @@ import solver_config
 
 _shared_XtX = None
 _shared_Xty = None
+_shared_yty = None
 _shared_nsample = None
 _shared_weights = None
 _shared_sparsity = None
@@ -27,17 +28,17 @@ def gurobi_prune(inps: torch.Tensor, outs: torch.Tensor, weights: torch.Tensor, 
     if structure not in ["unstructured", "semi"]:
             raise ValueError(f"Unknown sparsity structure: {structure}")
     
-    shared_XtX, shared_Xty, shared_nsample = compute_matrices(inps, outs, dev)
+    shared_XtX, shared_Xty, shared_yty, shared_nsample = compute_matrices(inps, outs, dev)
     weights_np = weights.cpu().numpy()
 
     with mp.Pool(
         processes=solver_config.GUROBI_NUM_PROCESS,
         initializer=_init_worker,
-        initargs=(shared_XtX, shared_Xty, shared_nsample, weights_np, sparsity, n, m, structure)
+        initargs=(shared_XtX, shared_Xty, shared_yty, shared_nsample, weights_np, sparsity, n, m, structure)
     ) as pool:
         results = pool.map(_solve_single_row, range(weights.shape[0]))
 
-    pruned_matrix = torch.zeros_like(weights, dtype=weights.dtype)  
+    pruned_matrix = torch.zeros_like(weights, dtype=weights.dtype, device=dev)  
     for row_idx, pruned_matrix_row in results:
         pruned_matrix[row_idx] = pruned_matrix_row.to(weights.dtype)
 
@@ -68,7 +69,7 @@ def _solve_single_row(row_idx: int) -> tuple[int, torch.Tensor]:
 
     # Objective
     xvar = z * w + e
-    loss = (xvar @ (_shared_XtX @ xvar) - 2 * _shared_Xty[:, row_idx] @ xvar) /_shared_nsample
+    loss = (xvar @ (_shared_XtX @ xvar) - 2 * _shared_Xty[:, row_idx] @ xvar + _shared_yty[row_idx]) / _shared_nsample
     model.setObjective(loss, GRB.MINIMIZE)
 
     # Constraints: error bounds
@@ -91,6 +92,10 @@ def _solve_single_row(row_idx: int) -> tuple[int, torch.Tensor]:
 
     if timed:
         print(f"row 0, total time: {time.time() - start_time:.4f}, solving time: {model.Runtime:.4f}")
+    
+    if row_idx <= 4:
+        optimal_objective_value = model.ObjVal
+        print(f"row {row_idx}, min: {optimal_objective_value:.6f}")
 
     z_mask = torch.tensor(z.X > 0.5)
     e_adjust = torch.tensor(e.X)
@@ -98,11 +103,11 @@ def _solve_single_row(row_idx: int) -> tuple[int, torch.Tensor]:
 
     return row_idx, pruned_row
 
-def _init_worker(XtX: np.ndarray, Xty: np.ndarray, nsample: int,
+def _init_worker(XtX: np.ndarray, Xty: np.ndarray, yty: np.ndarray, nsample: int,
                     weights: np.ndarray, sparsity: float, n: int, m: int, structure: str) -> None:
-    global _shared_XtX, _shared_Xty, _shared_nsample, _shared_weights, _shared_sparsity, \
+    global _shared_XtX, _shared_Xty, _shared_yty, _shared_nsample, _shared_weights, _shared_sparsity, \
             _shared_n, _shared_m, _shared_structure, _shared_output_dim, _shared_input_dim
-    _shared_XtX, _shared_Xty = XtX, Xty
+    _shared_XtX, _shared_Xty, _shared_yty = XtX, Xty, yty
     _shared_nsample = nsample
     _shared_weights = weights
     _shared_sparsity = sparsity
@@ -111,7 +116,7 @@ def _init_worker(XtX: np.ndarray, Xty: np.ndarray, nsample: int,
     _shared_structure = structure
     _shared_output_dim, _shared_input_dim = weights.shape
 
-def compute_matrices(inps: torch.Tensor, outs: torch.Tensor, dev: torch.device) -> tuple[np.ndarray, np.ndarray, int]:
+def compute_matrices(inps: torch.Tensor, outs: torch.Tensor, dev: torch.device) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     """
     Precompute matrices for the quadratic objective.
     """
@@ -122,9 +127,11 @@ def compute_matrices(inps: torch.Tensor, outs: torch.Tensor, dev: torch.device) 
     ridge_lambda = 1e-3 * torch.mean(torch.diag(XtX)).item()
     XtX += ridge_lambda * torch.eye(inps.shape[1], device=dev, dtype=inps.dtype)
     Xty = inps.T @ outs
+    yty = torch.sum(outs * outs, axis=0)
 
-    if not (torch.isnan(XtX).any() or torch.isinf(XtX).any() or torch.isnan(Xty).any() or torch.isinf(Xty).any()):
-        return XtX.cpu().numpy(), Xty.cpu().numpy(), inps.shape[0]
+    if not (torch.isnan(XtX).any() or torch.isinf(XtX).any() or torch.isnan(Xty).any() or torch.isinf(Xty).any() \
+            or torch.isnan(yty).any() or torch.isinf(yty).any()):
+        return XtX.cpu().numpy(), Xty.cpu().numpy(), yty.cpu().numpy(), inps.shape[0]
 
     # If NaN/Inf detected, recompute with float64 and normalization
     print("NaN/Inf detected in XtX. Recomputing with float64 and normalization...")
@@ -141,12 +148,15 @@ def compute_matrices(inps: torch.Tensor, outs: torch.Tensor, dev: torch.device) 
     ridge_lambda = 1e-3 * torch.mean(torch.diag(XtX)).item()
     XtX += ridge_lambda * torch.eye(inps64.shape[1], device=dev, dtype=torch.float64)
     Xty = inps64.T @ outs64
+    yty = torch.sum(outs64 * outs64, axis=0)
     
     XtX *= inps_std ** 2
     Xty *= inps_std * outs_std
+    yty *= outs_std ** 2
 
-    if torch.isnan(XtX).any() or torch.isinf(XtX).any() or torch.isnan(Xty).any() or torch.isinf(Xty).any():
+    if torch.isnan(XtX).any() or torch.isinf(XtX).any() or torch.isnan(Xty).any() or torch.isinf(Xty).any() \
+            or torch.isnan(yty).any() or torch.isinf(yty).any():
         raise ValueError("Still NaN/Inf in XtX even after float64 normalization.")
 
-    return XtX.to(inps.dtype).cpu().numpy(), Xty.to(inps.dtype).cpu().numpy(), inps.shape[0]
+    return XtX.to(inps.dtype).cpu().numpy(), Xty.to(inps.dtype).cpu().numpy(), yty.to(inps.dtype).cpu().numpy(), inps.shape[0]
         
