@@ -115,7 +115,7 @@ def solve_single_row_qhd(row_idx: int, XtX: np.ndarray, Xty: np.ndarray, yty: fl
     res = model.solve()
     
     x_sol = np.array(res.minimizer)
-    z_mask = (x_sol[:row_len] > 0.5).astype(float)
+    z_mask = (x_sol[:row_len] > 0.5).astype(np.float32)
     e_adjust = x_sol[row_len:]
     
     pruned_row = w_row * z_mask + e_adjust

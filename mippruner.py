@@ -54,7 +54,7 @@ class MIPPruner:
         if solver == 'gurobi':    
             W = gurobi_prune(self.inps, debiased_outs, W, sparsity, n, m, structure, self.dev)
         elif solver == 'qhd':
-            W = qhd_prune(self.inps, debiased_outs, W, sparsity, n, m, structure, self.dev)
+            W = qhd_prune(self.inps.float(), debiased_outs.float(), W, sparsity, n, m, structure, self.dev)
         else:
             raise NotImplementedError(f"Unknown solver: {solver}")
     
