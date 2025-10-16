@@ -1,5 +1,5 @@
 # SparseGPT-MIP
-A trial refinement of SparseGPT with added support for a Gurobi-based MIP mask solver.
+A trial refinement of SparseGPT with added support for Gurobi-based and QHD-based mask solver.
 
 ## Dependencies
 - `torch`  
@@ -8,28 +8,32 @@ A trial refinement of SparseGPT with added support for a Gurobi-based MIP mask s
 - `gurobipy`  
 
 ## Features
-- **Gurobi-based MIP Mask Solver**: Added support for solving mask optimization problems using Gurobi's Mixed-Integer Programming (MIP) solver.  
+- **Gurobi-based MIP Mask Solver**: Added support for solving mask optimization problems using Gurobi's Mixed-Integer Programming solver.  
+- **QHD-based MIP Mask Solver**: Added support for solving mask optimization problems using Quantum Hamiltonian Descent (QHD) solver.  
 - **LLaMA Model Support**: Includes functionality for pruning OPT and LLaMA models.  
-- **Parallelism for Gurobi WLS**: Utilizes 2-process parallelism to handle Gurobi WLS session limits, configurable in `mask_solver.py`.  
+- **Parallelism for Gurobi WLS**: Utilizes 2-process parallelism to handle Gurobi WLS session limits, configurable in `solver_config.py`.  
 
 ## Example Usages
 
-### SparseGPT with MIP Solver
+### SparseGPT with Gurobi, QHD Solver
 ```bash
-# n:m semi-structured pruning with Gurobi MIP solver
-python sparsegpt/opt.py local_opt_directory/ wikitext2 --prunen 2 --prunem 4 --nsamples 64 --save local_pruned_opt_directory --solver mippruner
+# n:m semi-structured pruning with Gurobi solver, using c4 as calibration dataset
+python sparsegpt/opt.py local_opt_directory/ c4 --prunen 2 --prunem 4 --nsamples 64 --solver gurobi
 
-# unstructured sparsity with MIP solver
-python sparsegpt/opt.py local_opt_directory/ wikitext2 --sparsity 0.5 --nsamples 64 --save local_pruned_opt_directory --solver mippruner
+# n:m semi-structured pruning with QHD solver, using c4 as calibration dataset
+python sparsegpt/opt.py local_opt_directory/ c4 --prunen 2 --prunem 4 --nsamples 64 --solver qhd
 
-# unstructured sparsity with baseline SparseGPT
-python sparsegpt/opt.py local_opt_directory/ wikitext2 --sparsity 0.5 --nsamples 64 --save local_pruned_opt_directory --solver sparsegpt
+# unstructured sparsity with Gurobi solver and save pruned model
+python sparsegpt/opt.py local_opt_directory/ c4 --sparsity 0.5 --nsamples 64 --save local_pruned_opt_directory --solver gurobi
+
+# unstructured sparsity with SparseGPT and save pruned model
+python sparsegpt/opt.py local_opt_directory/ c4 --sparsity 0.5 --nsamples 64 --save local_pruned_opt_directory --solver sparsegpt
 ```
 
 ## LLaMA Model with MIP Solver
 We also support LLaMA models with the same approach:
 ```bash
-python sparsegpt/llama.py local_llama_directory/ c4 --prunen 2 --prunem 4 --nsamples 64 --solver mippruner
+python sparsegpt/llama.py local_llama_directory/ c4 --prunen 2 --prunem 4 --nsamples 64 --solver gurobi
 ```
 
 ## Gurobi License
