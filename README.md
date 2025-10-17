@@ -17,14 +17,14 @@ A trial refinement of SparseGPT with added support for Gurobi-based and QHD-base
 
 ### SparseGPT with Gurobi, QHD Solver
 ```bash
-# n:m semi-structured pruning with Gurobi solver, using c4 as calibration dataset
-python sparsegpt/opt.py local_opt_directory/ c4 --prunen 2 --prunem 4 --nsamples 64 --solver gurobi
+# n:m semi-structured pruning with Gurobi solver, using c4 as calibration dataset, and save pruned model
+python sparsegpt/opt.py local_opt_directory/ c4 --prunen 2 --prunem 4 --nsamples 64 --save local_pruned_opt_directory --solver gurobi
 
 # n:m semi-structured pruning with QHD solver, using c4 as calibration dataset
 python sparsegpt/opt.py local_opt_directory/ c4 --prunen 2 --prunem 4 --nsamples 64 --solver qhd
 
-# unstructured sparsity with Gurobi solver and save pruned model
-python sparsegpt/opt.py local_opt_directory/ c4 --sparsity 0.5 --nsamples 64 --save local_pruned_opt_directory --solver gurobi
+# unstructured sparsity with Gurobi solver
+python sparsegpt/opt.py local_opt_directory/ c4 --sparsity 0.5 --nsamples 64 --solver gurobi
 
 # unstructured sparsity with SparseGPT and save pruned model
 python sparsegpt/opt.py local_opt_directory/ c4 --sparsity 0.5 --nsamples 64 --save local_pruned_opt_directory --solver sparsegpt
